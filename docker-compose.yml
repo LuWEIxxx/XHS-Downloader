@@ -1,0 +1,41 @@
+# XHS-Downloader Web 版 Docker Compose 配置（适用于飞牛 fnOS / 群晖 / 任意 Docker 环境）
+#
+# 使用方法：
+#   1. 把本目录（含 Dockerfile、main.py、webui.py、source/、static/）上传到 NAS
+#   2. 在飞牛 NAS 的「Docker -> Compose -> 新建项目」中，指定本文件路径
+#   3. 修改下方 volumes 中挂载到 /downloads 的 NAS 路径为你的实际共享目录
+#   4. 启动后访问 http://NAS的IP:5556
+#
+# 注意：
+#   - 镜像默认启动 Web 模式；如需 TUI/API/MCP 模式，修改 command 字段
+#   - 架构说明：飞牛 NAS 多为 x86_64；ARM 机型请用 docker buildx 构建对应平台镜像
+
+services:
+  xhs-downloader:
+    build: .
+    image: xhs-downloader:web
+    container_name: xhs-downloader
+    restart: unless-stopped
+    # TUI / API / MCP 模式切换（默认 Web 模式）
+    # command: ["python", "main.py"]          # TUI
+    # command: ["python", "main.py", "api"]   # API 模式 (http://IP:5556/docs)
+    # command: ["python", "main.py", "mcp"]   # MCP 模式 (http://IP:5556/mcp/)
+    ports:
+      - "5556:5556"
+    environment:
+      - TZ=Asia/Shanghai
+      - LANG=C.UTF-8
+    volumes:
+      # 配置、下载记录、数据库持久化（必须保留，否则重启后设置丢失）
+      - xhs_config:/app/Volume
+      # 挂载 NAS 父目录到容器内同名路径，文件最终存到 /vol1/1000/xhs/Download
+      - /vol1/1000/xhs:/vol1/1000/xhs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  xhs_config:
+

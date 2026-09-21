@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XHS Downloader · 小红书下载</title>
+<script src="/vendor/vue.global.prod.js"></script>
+<style>
+:root {
+  --primary: #ff2442;
+  --primary-dark: #e01e3a;
+  --bg: #f2f3f5;
+  --card: #ffffff;
+  --text: #1f2329;
+  --text-2: #646a73;
+  --text-3: #8f959e;
+  --border: #e5e6eb;
+  --success: #00b42a;
+  --danger: #f53f3f;
+  --radius: 12px;
+  --shadow: 0 2px 10px rgba(31, 35, 41, 0.06);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6;
+}
+button { font-family: inherit; cursor: pointer; border: none; outline: none; }
+input, textarea, select { font-family: inherit; font-size: 14px; }
+
+/* ---------- 顶部导航 ---------- */
+header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255,255,255,.92); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav {
+  max-width: 1080px; margin: 0 auto; padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; }
+.logo .dot {
+  width: 30px; height: 30px; border-radius: 9px; background: var(--primary);
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.nav-actions { display: flex; gap: 10px; }
+.btn-ghost {
+  padding: 8px 16px; border-radius: 8px; background: #fff;
+  border: 1px solid var(--border); color: var(--text); font-size: 13px;
+  transition: all .15s;
+}
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ---------- 主内容 ---------- */
+main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+
+.card {
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 20px; margin-bottom: 20px;
+}
+
+/* 输入区 */
+.input-card h2 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.input-card textarea {
+  width: 100%; min-height: 84px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 10px;
+  resize: vertical; transition: border-color .15s;
+}
+.input-card textarea:focus { border-color: var(--primary); outline: none; }
+.input-hint { font-size: 12px; color: var(--text-3); margin-top: 8px; }
+.input-row { display: flex; gap: 12px; margin-top: 14px; align-items: center; }
+.btn-primary {
+  padding: 10px 28px; border-radius: 10px; background: var(--primary); color: #fff;
+  font-size: 14px; font-weight: 600; transition: all .15s;
+}
+.btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-mini {
+  padding: 6px 14px; border-radius: 7px; background: #fff;
+  border: 1px solid var(--border); color: var(--text-2); font-size: 12px;
+  transition: all .15s;
+}
+.btn-mini:hover { border-color: var(--primary); color: var(--primary); }
+.btn-mini.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-mini.primary:hover { background: var(--primary-dark); }
+.btn-mini:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- 作品卡片 ---------- */
+.work-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.badge {
+  padding: 2px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+}
+.badge.image { background: #ffecee; color: var(--primary); }
+.badge.video { background: #e8f3ff; color: #165dff; }
+.badge.album { background: #f3ecff; color: #722ed1; }
+.author { font-size: 13px; color: var(--text-2); font-weight: 600; }
+.meta { font-size: 12px; color: var(--text-3); display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.work-title { font-size: 16px; margin-top: 12px; }
+.work-desc {
+  font-size: 13px; color: var(--text-2); margin-top: 6px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* 图片网格 */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 16px; }
+.img-cell {
+  position: relative; aspect-ratio: 3/4; border-radius: 10px; overflow: hidden;
+  cursor: pointer; border: 2px solid transparent; transition: all .15s;
+  background: #f7f8fa;
+}
+.img-cell img { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; }
+.img-cell .idx {
+  position: absolute; top: 6px; left: 6px; width: 22px; height: 22px;
+  background: rgba(0,0,0,.55); color: #fff; border-radius: 6px;
+  font-size: 12px; display: flex; align-items: center; justify-content: center;
+}
+.img-cell .live-tag {
+  position: absolute; top: 6px; right: 6px; padding: 1px 7px;
+  background: rgba(255,36,66,.85); color: #fff; border-radius: 6px; font-size: 11px;
+}
+.img-cell .check {
+  position: absolute; right: 8px; bottom: 8px; width: 24px; height: 24px;
+  border-radius: 50%; background: rgba(0,0,0,.45); color: transparent;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700;
+  transition: all .15s;
+}
+.img-cell.selected { border-color: var(--primary); }
+.img-cell.selected .check { background: var(--primary); color: #fff; }
+.img-cell:hover .check { transform: scale(1.1); }
+.img-cell .img-error {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  color: var(--text-3); font-size: 12px; background: #f0f1f3;
+}
+
+/* 视频 */
+.video-wrap { margin-top: 16px; }
+.video-wrap video { width: 100%; max-height: 480px; border-radius: 10px; background: #000; }
+
+/* 作品操作栏 */
+.work-actions {
+  display: flex; align-items: center; gap: 10px; margin-top: 16px;
+  padding-top: 14px; border-top: 1px solid var(--border); flex-wrap: wrap;
+}
+.count { font-size: 13px; color: var(--text-2); margin-right: auto; }
+.count b { color: var(--primary); }
+
+/* 空状态 */
+.empty { text-align: center; color: var(--text-3); padding: 40px 0; }
+.empty .icon { font-size: 40px; margin-bottom: 10px; }
+
+/* ---------- 弹窗 ---------- */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal {
+  background: #fff; border-radius: 16px; width: 100%; max-width: 640px;
+  max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0,0,0,.2);
+}
+.modal-head {
+  padding: 18px 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-head h3 { font-size: 16px; }
+.modal-close { background: none; font-size: 20px; color: var(--text-3); padding: 4px 8px; border-radius: 6px; }
+.modal-close:hover { background: #f2f3f5; color: var(--text); }
+.modal-body { padding: 18px 24px; overflow-y: auto; flex: 1; }
+.modal-foot {
+  padding: 14px 24px; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: 10px;
+}
+
+.settings-group-title {
+  font-size: 13px; font-weight: 700; color: var(--text-2);
+  margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px dashed var(--border);
+}
+.settings-group-title:first-child { margin-top: 0; }
+.form-item { margin-bottom: 14px; }
+.form-item label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.form-item .hint { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+.form-item input[type="text"], .form-item input[type="password"], .form-item input[type="number"], .form-item select {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+  transition: border-color .15s;
+}
+.form-item input:focus, .form-item select:focus { border-color: var(--primary); outline: none; }
+.dir-row { display: flex; gap: 8px; }
+.dir-row input { flex: 1; }
+.check-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+}
+.check-item .l { font-size: 13px; }
+.check-item .l .hint { display: block; color: var(--text-3); font-size: 12px; margin-top: 2px; }
+.switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.switch input { display: none; }
+.switch .slider {
+  position: absolute; inset: 0; background: #d4d6db; border-radius: 11px; transition: all .2s;
+}
+.switch .slider::before {
+  content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; top: 2px; left: 2px; transition: all .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.switch input:checked + .slider { background: var(--primary); }
+.switch input:checked + .slider::before { left: 20px; }
+
+/* 目录选择器 */
+.crumb {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  font-size: 13px; padding: 8px 12px; background: #f7f8fa;
+  border-radius: 8px; margin-bottom: 12px; word-break: break-all;
+}
+.crumb span { color: var(--text-2); }
+.dir-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+.dir-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  cursor: pointer; border-bottom: 1px solid #f2f3f5; font-size: 13px;
+}
+.dir-item:last-child { border-bottom: none; }
+.dir-item:hover { background: #f7f8fa; }
+.dir-item .ic { width: 22px; text-align: center; }
+.dir-item.file { color: var(--text-3); cursor: default; }
+.dir-item.file:hover { background: none; }
+.dir-pick-btn {
+  margin-left: auto; padding: 4px 12px; border-radius: 6px;
+  background: #fff; border: 1px solid var(--border); color: var(--text-2); font-size: 12px;
+}
+.dir-pick-btn:hover { border-color: var(--primary); color: var(--primary); }
+.fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fmeta { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
+
+/* 有效路径提示条 */
+.effective-bar {
+  background: #fff7e6; border: 1px solid #ffd591; color: #874d00;
+  border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px;
+}
+.effective-bar b { font-weight: 700; word-break: break-all; }
+.effective-bar .hint { display: block; font-size: 12px; margin-top: 2px; color: #ad6800; }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+  padding: 10px 22px; border-radius: 10px; color: #fff; font-size: 13px;
+  z-index: 200; box-shadow: 0 6px 20px rgba(0,0,0,.18); max-width: 80vw;
+}
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+.toast.info { background: #165dff; }
+.toast-enter-active, .toast-leave-active { transition: all .25s; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, -12px); }
+
+.loading-spin {
+  display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4);
+  border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite;
+  vertical-align: -2px; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <!-- 顶部导航 -->
+  <header>
+    <div class="nav">
+      <div class="logo"><span class="dot">红</span>XHS Downloader</div>
+      <div class="nav-actions">
+        <button class="btn-ghost" @click="openFiles">📂 下载目录</button>
+        <button class="btn-ghost" @click="openRecords">🗂 下载记录</button>
+        <button class="btn-ghost" @click="openSettings">⚙️ 设置</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 链接输入 -->
+    <section class="card input-card">
+      <h2>📎 粘贴小红书作品链接</h2>
+      <textarea v-model="linkText" placeholder="支持多个链接，空格或换行分隔&#10;https://www.xiaohongshu.com/explore/xxx?xsec_token=xxx&#10;https://xhslink.com/xxx" @keydown.ctrl.enter="parseLinks"></textarea>
+      <div class="input-row">
+        <button class="btn-primary" :disabled="parsing || !linkText.trim()" @click="parseLinks">
+          <span v-if="parsing" class="loading-spin"></span>{{ parsing ? '解析中…' : '解析链接' }}
+        </button>
+        <span class="input-hint" v-if="works.length">已解析 {{ works.length }} 个作品，勾选文件后点击「下载所选」</span>
+      </div>
+    </section>
+
+    <!-- 空状态 -->
+    <div class="card empty" v-if="!works.length && !parsing">
+      <div class="icon">🎯</div>
+      <div>粘贴链接后点击「解析链接」，即可预览并勾选下载</div>
+    </div>
+
+    <!-- 作品列表 -->
+    <section v-if="works.length">
+      <div class="card" v-for="(work, wi) in works" :key="work['作品ID'] || wi">
+        <div class="work-head">
+          <span class="badge" :class="badgeClass(work['作品类型'])">{{ work['作品类型'] }}</span>
+          <span class="author">{{ work['作者昵称'] }}</span>
+          <span class="meta">
+            <span>🕐 {{ work['发布时间'] }}</span>
+            <span>👍 {{ work['点赞数量'] }}</span>
+            <span>💬 {{ work['评论数量'] }}</span>
+            <span>⭐ {{ work['收藏数量'] }}</span>
+          </span>
+        </div>
+        <h3 class="work-title">{{ work['作品标题'] }}</h3>
+        <p class="work-desc" v-if="work['作品描述']">{{ work['作品描述'] }}</p>
+
+        <!-- 视频预览 -->
+        <div class="video-wrap" v-if="work['作品类型'] === '视频' && work.items.length">
+          <video controls preload="metadata" :src="work.items[0].preview"></video>
+        </div>
+
+        <!-- 图片网格 -->
+        <div class="grid" v-else>
+          <div v-for="item in work.items" :key="item.index"
+               class="img-cell" :class="{ selected: isSelected(work, item.index) }"
+               @click="toggleItem(work, item.index)">
+            <img :src="item.preview" loading="lazy" @error="imgError" alt="">
+            <span class="idx">{{ item.index }}</span>
+            <span class="live-tag" v-if="item.live">动图</span>
+            <span class="check">✓</span>
+          </div>
+        </div>
+
+        <!-- 操作栏 -->
+        <div class="work-actions">
+          <span class="count" v-if="work['作品类型'] !== '视频'">
+            已选 <b>{{ work.selected.length }}</b> / {{ work.items.length }} 项
+          </span>
+          <span class="count" v-else>视频作品</span>
+          <button class="btn-mini" v-if="work['作品类型'] !== '视频' && work.selected.length < work.items.length" @click="selectAll(work)">全选</button>
+          <button class="btn-mini" v-if="work['作品类型'] !== '视频' && work.selected.length" @click="clearSelect(work)">取消</button>
+          <button class="btn-mini primary" :disabled="work.downloading || (work['作品类型'] !== '视频' && !work.selected.length)" @click="downloadWork(work)">
+            <span v-if="work.downloading" class="loading-spin"></span>{{ work.downloading ? '下载中…' : '下载所选' }}
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 设置弹窗 -->
+  <div class="modal-mask" v-if="showSettings" @click.self="showSettings = false">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>⚙️ 程序设置</h3>
+        <button class="modal-close" @click="showSettings = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="effective-bar" v-if="effective">
+          📍 当前下载位置：<b>{{ effective.download_path }}</b>
+          <span class="hint">文件将保存到容器内该目录。若在 NAS 文件管理器中找不到，请把「保存根路径」设为挂载的共享目录（如 /downloads）</span>
+        </div>
+        <div class="settings-group-title">常规与网络</div>
+        <div class="form-item" v-for="item in schema.filter(s => s.type !== 'bool')" :key="item.key">
+          <label>{{ item.label }}</label>
+          <!-- 目录选择 -->
+          <div class="dir-row" v-if="item.type === 'dir'">
+            <input type="text" v-model="settingsForm[item.key]" placeholder="留空使用默认目录">
+            <button class="btn-mini" @click="openDirPicker">浏览…</button>
+          </div>
+          <select v-else-if="item.type === 'select' && item.options" v-model="settingsForm[item.key]">
+            <template v-for="opt in item.options">
+              <option :value="Array.isArray(opt) ? opt[0] : opt" v-if="!Array.isArray(opt) || true">
+                {{ Array.isArray(opt) ? opt[1] : opt }}
+              </option>
+            </template>
+          </select>
+          <input v-else-if="item.type === 'number'" type="number" v-model.number="settingsForm[item.key]">
+          <input v-else-if="item.type === 'password'" type="password" v-model="settingsForm[item.key]" placeholder="未设置">
+          <input v-else type="text" v-model="settingsForm[item.key]">
+          <div class="hint" v-if="item.hint">{{ item.hint }}</div>
+        </div>
+
+        <div class="settings-group-title">功能开关</div>
+        <div class="check-item" v-for="item in schema.filter(s => s.type === 'bool')" :key="item.key">
+          <div class="l">
+            {{ item.label }}
+            <span class="hint" v-if="item.hint">{{ item.hint }}</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="settingsForm[item.key]">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-mini" @click="showSettings = false">取消</button>
+        <button class="btn-mini primary" :disabled="saving" @click="saveSettings">
+          <span v-if="saving" class="loading-spin"></span>{{ saving ? '保存中…' : '保存并生效' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 目录选择弹窗 -->
+  <div class="modal-mask" v-if="dirPicker.visible" @click.self="dirPicker.visible = false">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-head">
+        <h3>📁 选择保存目录</h3>
+        <button class="modal-close" @click="dirPicker.visible = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="crumb">
+          <span>📍</span><span>{{ dirPicker.path }}</span>
+        </div>
+        <div class="dir-list">
+          <div class="dir-item" @click="goParentDir" v-if="dirPicker.parent">
+            <span class="ic">⬆️</span><span>返回上级</span>
+          </div>
+          <div class="dir-item" :class="{ file: !entry.is_dir }" v-for="entry in dirPicker.entries" :key="entry.path" @click="entry.is_dir && enterDir(entry)">
+            <span class="ic">{{ entry.is_dir ? '📂' : '📄' }}</span>
+            <span>{{ entry.name }}</span>
+            <button class="dir-pick-btn" v-if="entry.is_dir" @click.stop="pickDir(entry)">选择</button>
+          </div>
+          <div class="dir-item" v-if="!dirPicker.loading && !dirPicker.entries.length" style="justify-content:center;color:var(--text-3);cursor:default">
+            空目录
+          </div>
+          <div class="dir-item" v-if="dirPicker.loading" style="justify-content:center;color:var(--text-3);cursor:default">
+            <span class="loading-spin" style="border-color:#e5e6eb;border-top-color:var(--primary)"></span>加载中…
+          </div>
+        </div>
+        <div class="hint" style="font-size:12px;color:var(--text-3);margin-top:8px">
+          提示：目录为容器内的路径。部署时挂载的 NAS 共享目录通常位于 /downloads 或 /data 下。
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-mini" @click="dirPicker.visible = false">关闭</button>
+        <button class="btn-mini primary" @click="pickCurrent">选择当前目录</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 下载目录文件弹窗 -->
+  <div class="modal-mask" v-if="showFiles" @click.self="showFiles = false">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-head">
+        <h3>📂 下载目录</h3>
+        <button class="modal-close" @click="showFiles = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="crumb">
+          <span>📍</span><span>{{ filesPath }}</span>
+        </div>
+        <div class="dir-list">
+          <div class="dir-item" @click="loadFiles(filesParent)" v-if="filesParent">
+            <span class="ic">⬆️</span><span>返回上级</span>
+          </div>
+          <div class="dir-item" v-for="f in fileList" :key="f.path" @click="f.is_dir && loadFiles(f.path)">
+            <span class="ic">{{ f.is_dir ? '📂' : '📄' }}</span>
+            <span class="fname">{{ f.name }}</span>
+            <span class="fmeta" v-if="!f.is_dir">{{ formatSize(f.size) }} · {{ f.mtime }}</span>
+          </div>
+          <div class="dir-item" v-if="!filesLoading && !fileList.length" style="justify-content:center;color:var(--text-3);cursor:default">
+            目录为空，下载的文件会出现在这里
+          </div>
+          <div class="dir-item" v-if="filesLoading" style="justify-content:center;color:var(--text-3);cursor:default">
+            <span class="loading-spin" style="border-color:#e5e6eb;border-top-color:var(--primary)"></span>加载中…
+          </div>
+        </div>
+        <div class="hint" style="font-size:12px;color:var(--text-3);margin-top:8px">
+          如果这里找不到刚下载的文件，说明保存位置在别处，请在「设置」中确认「保存根路径」（NAS 共享目录通常挂载在 /downloads）
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-mini" @click="showFiles = false">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 下载记录弹窗 -->
+  <div class="modal-mask" v-if="showRecords" @click.self="showRecords = false">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-head">
+        <h3>🗂 下载记录</h3>
+        <button class="modal-close" @click="showRecords = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="hint" style="font-size:12px;color:var(--text-3);margin:0 2px 10px">
+          共 <b>{{ records.length }}</b> 条记录 · 记录文件：{{ recordsFile || '…' }}
+        </div>
+        <div class="dir-list">
+          <div class="dir-item" v-for="r in records" :key="r.id">
+            <span class="ic">📄</span>
+            <span class="fname">
+              {{ r['作品标题'] || r.id }}
+              <span class="fmeta" v-if="r['作者昵称'] || r['作者ID']">
+                👤 {{ r['作者昵称'] || '未知作者' }}{{ r['作者ID'] ? ' · 小红书号 ' + r['作者ID'] : '' }}
+              </span>
+              <span class="fmeta" v-if="r['作品链接'] || r['下载时间']">
+                <a v-if="r['作品链接']" :href="r['作品链接']" target="_blank" rel="noopener" style="color:var(--primary)">🔗 作品链接</a>{{ r['作品链接'] ? ' · ' : '' }}{{ r['下载时间'] || '' }}
+              </span>
+            </span>
+            <button class="dir-pick-btn" @click.stop="deleteRecord(r.id)">删除</button>
+          </div>
+          <div class="dir-item" v-if="!recordsLoading && !records.length" style="justify-content:center;color:var(--text-3);cursor:default">
+            暂无下载记录
+          </div>
+          <div class="dir-item" v-if="recordsLoading" style="justify-content:center;color:var(--text-3);cursor:default">
+            <span class="loading-spin" style="border-color:#e5e6eb;border-top-color:var(--primary)"></span>加载中…
+          </div>
+        </div>
+        <div class="hint" style="font-size:12px;color:var(--text-3);margin-top:8px">
+          记录由「设置 → 记录下载历史」开关控制；删除/清空仅移除记录，不影响已下载的文件
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-mini" @click="exportRecords">⬇ 导出 CSV</button>
+        <button class="btn-mini" style="color:var(--danger);border-color:var(--danger)" @click="clearRecords">🗑 清空全部</button>
+        <button class="btn-mini" @click="showRecords = false">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <transition name="toast">
+    <div class="toast" :class="toast.type" v-if="toast.visible">{{ toast.text }}</div>
+  </transition>
+
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      linkText: "",
+      parsing: false,
+      works: [],
+      showSettings: false,
+      saving: false,
+      settingsForm: {},
+      schema: [],
+      effective: null,
+      showFiles: false,
+      fileList: [],
+      filesLoading: false,
+      filesPath: "",
+      filesParent: null,
+      showRecords: false,
+      records: [],
+      recordsLoading: false,
+      recordsFile: "",
+      dirPicker: { visible: false, path: "/", parent: null, entries: [], loading: false, target: null },
+      toast: { visible: false, text: "", type: "info", timer: null },
+    };
+  },
+  methods: {
+    /* ---------- 解析 ---------- */
+    async parseLinks() {
+      if (!this.linkText.trim()) return;
+      this.parsing = true;
+      try {
+        const res = await fetch("/api/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: this.linkText.trim() }),
+        });
+        const j = await res.json();
+        if (j.ok) {
+          this.works = j.works.map(w => ({ ...w, selected: [], downloading: false }));
+          this.showToast(`解析成功，共 ${j.total} 个作品`, "success");
+        } else {
+          this.showToast(j.message || "解析失败", "error");
+        }
+      } catch (e) {
+        this.showToast("解析请求失败：" + e.message, "error");
+      } finally {
+        this.parsing = false;
+      }
+    },
+
+    /* ---------- 选择 ---------- */
+    isSelected(work, index) { return work.selected.includes(index); },
+    toggleItem(work, index) {
+      const pos = work.selected.indexOf(index);
+      if (pos >= 0) work.selected.splice(pos, 1);
+      else work.selected.push(index);
+    },
+    selectAll(work) { work.selected = work.items.map(i => i.index); },
+    clearSelect(work) { work.selected = []; },
+    badgeClass(type) {
+      if (type === "视频") return "video";
+      if (type === "图集") return "album";
+      return "image";
+    },
+    imgError(e) {
+      e.target.style.display = "none";
+      const cell = e.target.closest(".img-cell");
+      if (cell && !cell.querySelector(".img-error")) {
+        const div = document.createElement("div");
+        div.className = "img-error";
+        div.textContent = "加载失败";
+        cell.appendChild(div);
+      }
+    },
+
+    /* ---------- 下载 ---------- */
+    async downloadWork(work) {
+      work.downloading = true;
+      try {
+        const res = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: work["作品链接"],
+            index: work.selected.length ? work.selected : null,
+          }),
+        });
+        const j = await res.json();
+        if (j.ok) {
+          this.showToast(j.message + (j.download_path ? `（保存至 ${j.download_path}）` : ""), "success");
+          this.clearSelect(work);
+        } else {
+          this.showToast(j.message || "下载失败", "error");
+        }
+      } catch (e) {
+        this.showToast("下载请求失败：" + e.message, "error");
+      } finally {
+        work.downloading = false;
+      }
+    },
+
+    /* ---------- 下载目录 ---------- */
+    async openFiles() {
+      this.showFiles = true;
+      await this.loadFiles("");
+    },
+    async loadFiles(path) {
+      this.filesLoading = true;
+      try {
+        const res = await fetch("/api/files?path=" + encodeURIComponent(path));
+        const j = await res.json();
+        if (j.ok) {
+          this.filesPath = j.path;
+          this.filesParent = j.parent;
+          this.fileList = j.files;
+        } else {
+          this.showToast(j.message || "目录加载失败", "error");
+        }
+      } catch (e) {
+        this.showToast("目录加载失败：" + e.message, "error");
+      } finally {
+        this.filesLoading = false;
+      }
+    },
+    formatSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / 1024 / 1024).toFixed(1) + " MB";
+    },
+
+    /* ---------- 下载记录 ---------- */
+    async openRecords() {
+      this.showRecords = true;
+      this.recordsLoading = true;
+      try {
+        const res = await fetch("/api/records");
+        const j = await res.json();
+        if (j.ok) {
+          this.records = j.records;
+          this.recordsFile = j.records_file || "";
+        } else {
+          this.showToast(j.message || "读取下载记录失败", "error");
+        }
+      } catch (e) {
+        this.showToast("读取下载记录失败：" + e.message, "error");
+      } finally {
+        this.recordsLoading = false;
+      }
+    },
+    async deleteRecord(id) {
+      if (!confirm(`确认删除记录 ${id}？`)) return;
+      try {
+        const res = await fetch("/api/records?ids=" + encodeURIComponent(id), { method: "DELETE" });
+        const j = await res.json();
+        if (j.ok) {
+          this.showToast(j.message, "success");
+          this.records = this.records.filter(r => r.id !== id);
+        } else {
+          this.showToast(j.message || "删除失败", "error");
+        }
+      } catch (e) {
+        this.showToast("删除失败：" + e.message, "error");
+      }
+    },
+    async clearRecords() {
+      if (!confirm("确认清空全部下载记录？\n仅删除记录，不影响已下载的文件，且不可恢复。")) return;
+      try {
+        const res = await fetch("/api/records/clear", { method: "POST" });
+        const j = await res.json();
+        if (j.ok) {
+          this.showToast(j.message, "success");
+          this.records = [];
+        } else {
+          this.showToast(j.message || "清空失败", "error");
+        }
+      } catch (e) {
+        this.showToast("清空失败：" + e.message, "error");
+      }
+    },
+    exportRecords() {
+      window.location.href = "/api/records/export";
+    },
+
+    /* ---------- 设置 ---------- */
+    async openSettings() {
+      this.showSettings = true;
+      try {
+        const res = await fetch("/api/settings");
+        const j = await res.json();
+        if (j.ok) {
+          this.schema = j.schema;
+          this.settingsForm = JSON.parse(JSON.stringify(j.settings));
+          this.effective = j.effective || null;
+        } else {
+          this.showToast(j.message || "读取设置失败", "error");
+        }
+      } catch (e) {
+        this.showToast("读取设置失败：" + e.message, "error");
+      }
+    },
+    async saveSettings() {
+      this.saving = true;
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: this.settingsForm }),
+        });
+        const j = await res.json();
+        if (j.ok) {
+          this.showToast(j.message, "success");
+          this.showSettings = false;
+        } else {
+          this.showToast(j.message || "保存失败", "error");
+        }
+      } catch (e) {
+        this.showToast("保存失败：" + e.message, "error");
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    /* ---------- 目录选择 ---------- */
+    async openDirPicker() {
+      this.dirPicker.visible = true;
+      await this.loadDirs(this.settingsForm.work_path || "/");
+    },
+    async loadDirs(path) {
+      this.dirPicker.loading = true;
+      try {
+        const res = await fetch("/api/dirs?path=" + encodeURIComponent(path));
+        const j = await res.json();
+        if (j.ok) {
+          this.dirPicker.path = j.path;
+          this.dirPicker.parent = j.parent;
+          this.dirPicker.entries = j.entries;
+        } else {
+          this.showToast(j.message || "目录加载失败", "error");
+        }
+      } catch (e) {
+        this.showToast("目录加载失败：" + e.message, "error");
+      } finally {
+        this.dirPicker.loading = false;
+      }
+    },
+    enterDir(entry) { this.loadDirs(entry.path); },
+    goParentDir() { this.dirPicker.parent && this.loadDirs(this.dirPicker.parent); },
+    pickDir(entry) {
+      this.settingsForm.work_path = entry.path;
+      this.showToast("已选择：" + entry.path, "success");
+      this.dirPicker.visible = false;
+    },
+    pickCurrent() {
+      this.settingsForm.work_path = this.dirPicker.path;
+      this.showToast("已选择：" + this.dirPicker.path, "success");
+      this.dirPicker.visible = false;
+    },
+
+    /* ---------- toast ---------- */
+    showToast(text, type = "info") {
+      clearTimeout(this.toast.timer);
+      this.toast.text = text;
+      this.toast.type = type;
+      this.toast.visible = true;
+      this.toast.timer = setTimeout(() => { this.toast.visible = false; }, 3500);
+    },
+  },
+}).mount("#app");
+</script>
+</body>
+</html>
