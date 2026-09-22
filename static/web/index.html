@@ -368,7 +368,11 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
             </template>
           </select>
           <input v-else-if="item.type === 'number'" type="number" v-model.number="settingsForm[item.key]">
-          <input v-else-if="item.type === 'password'" type="password" v-model="settingsForm[item.key]" placeholder="未设置">
+          <template v-else-if="item.type === 'password'">
+            <input type="password" v-model="settingsForm[item.key]" autocomplete="new-password"
+                   :placeholder="settingsForm.cookie_configured ? '已配置，留空保留原 Cookie' : '未配置，输入新 Cookie'">
+            <label><input type="checkbox" v-model="clearCookie">清除已保存的 Cookie</label>
+          </template>
           <input v-else type="text" v-model="settingsForm[item.key]">
           <div class="hint" v-if="item.hint">{{ item.hint }}</div>
         </div>
@@ -532,6 +536,7 @@ createApp({
       showSettings: false,
       saving: false,
       settingsForm: {},
+      clearCookie: false,
       schema: [],
       effective: null,
       showFiles: false,
@@ -555,7 +560,7 @@ createApp({
       try {
         const res = await fetch("/api/parse", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-XHS-Request": "1" },
           body: JSON.stringify({ url: this.linkText.trim() }),
         });
         const j = await res.json();
@@ -603,7 +608,7 @@ createApp({
       try {
         const res = await fetch("/api/download", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-XHS-Request": "1" },
           body: JSON.stringify({
             url: work["作品链接"],
             index: work.selected.length ? work.selected : null,
@@ -674,7 +679,7 @@ createApp({
     async deleteRecord(id) {
       if (!confirm(`确认删除记录 ${id}？`)) return;
       try {
-        const res = await fetch("/api/records?ids=" + encodeURIComponent(id), { method: "DELETE" });
+        const res = await fetch("/api/records?ids=" + encodeURIComponent(id), { method: "DELETE", headers: { "X-XHS-Request": "1" } });
         const j = await res.json();
         if (j.ok) {
           this.showToast(j.message, "success");
@@ -689,7 +694,7 @@ createApp({
     async clearRecords() {
       if (!confirm("确认清空全部下载记录？\n仅删除记录，不影响已下载的文件，且不可恢复。")) return;
       try {
-        const res = await fetch("/api/records/clear", { method: "POST" });
+        const res = await fetch("/api/records/clear", { method: "POST", headers: { "X-XHS-Request": "1" } });
         const j = await res.json();
         if (j.ok) {
           this.showToast(j.message, "success");
@@ -714,6 +719,8 @@ createApp({
         if (j.ok) {
           this.schema = j.schema;
           this.settingsForm = JSON.parse(JSON.stringify(j.settings));
+          this.settingsForm.cookie = "";
+          this.clearCookie = false;
           this.effective = j.effective || null;
         } else {
           this.showToast(j.message || "读取设置失败", "error");
@@ -727,12 +734,17 @@ createApp({
       try {
         const res = await fetch("/api/settings", {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ settings: this.settingsForm }),
+          headers: { "Content-Type": "application/json", "X-XHS-Request": "1" },
+          body: JSON.stringify({
+            settings: Object.fromEntries(Object.entries(this.settingsForm).filter(([key]) => !["cookie", "cookie_configured"].includes(key))),
+            cookie: this.settingsForm.cookie,
+            clear_cookie: this.clearCookie,
+          }),
         });
         const j = await res.json();
         if (j.ok) {
           this.showToast(j.message, "success");
+          this.settingsForm.cookie = "";
           this.showSettings = false;
         } else {
           this.showToast(j.message || "保存失败", "error");

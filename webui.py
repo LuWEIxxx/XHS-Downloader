@@ -19,12 +19,12 @@ from urllib.parse import quote
 
 import aiosqlite
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from starlette.background import BackgroundTask
 
 from source import Settings, XHS
+from web_security import WebAuth, proxy_media, public_settings
 
 __all__ = ["AppState", "create_app"]
 
@@ -73,13 +73,7 @@ SETTINGS_SCHEMA = [
      "hint": "每个作者的作品储存至单独文件夹"},
     {"key": "write_mtime", "type": "bool", "label": "写入修改时间", "default": False,
      "hint": "将作品文件的修改时间改为作品发布时间"},
-    {"key": "script_server", "type": "bool", "label": "用户脚本服务器", "default": False,
-     "hint": "接收浏览器用户脚本推送的下载任务（端口 5558）"},
 ]
-
-# 需要转发到前端的媒体响应头
-_VIDEO_HEADERS = ("accept-ranges", "content-length", "content-range")
-
 
 # 首次启动时探测的下载挂载目录（docker-compose 通常把 NAS 共享目录挂载到这里）
 DEFAULT_MOUNT_CANDIDATES = ("/downloads", "/data", "/download")
@@ -130,19 +124,24 @@ class AppState:
                             settings["work_path"] = path
                             self.settings.update(settings)
                             print(f"[WebUI] 已自动将保存根路径设为 {path}（检测到下载挂载目录）")
-                    self.xhs = XHS(**settings)
+                    # The standalone script server does not share Web authentication.
+                    self.xhs = XHS(**(settings | {"script_server": False}))
                     await self.xhs.__aenter__()
         return self.xhs
 
-    async def update_settings(self, data: dict) -> dict:
+    async def update_settings(self, data: dict, cookie: str | None = None, clear_cookie: bool = False) -> dict:
         """合并更新设置：写盘 -> 关闭旧实例 -> 用新配置重建"""
         async with self.op_lock:
             await self.ensure()
             current = self.settings.read()
-            merged = {**current, **{k: v for k, v in data.items() if k in SETTINGS_SCHEMA_BY_KEY}}
+            merged = {**current, **{k: v for k, v in data.items() if k in SETTINGS_SCHEMA_BY_KEY and k != "cookie"}}
+            if clear_cookie:
+                merged["cookie"] = ""
+            elif cookie and cookie.strip():
+                merged["cookie"] = cookie.strip()
             self.settings.update(merged)
             await self.xhs.__aexit__(None, None, None)
-            self.xhs = XHS(**merged)
+            self.xhs = XHS(**(merged | {"script_server": False}))
             await self.xhs.__aenter__()
             return merged
 
@@ -192,14 +191,18 @@ class DownloadRequest(BaseModel):
 
 class SettingsUpdate(BaseModel):
     settings: dict
+    cookie: str | None = None
+    clear_cookie: bool = False
 
 
 def create_app(state: AppState) -> FastAPI:
+    auth = WebAuth()  # Fail closed before startup or any routes are served.
     app = FastAPI(
         title="XHS-Downloader Web",
         version="1.0.0",
         description="小红书作品下载 Web 管理界面",
     )
+    app.middleware("http")(auth)
 
     # 兼容原有 API 模式接口
     @app.on_event("startup")
@@ -259,7 +262,7 @@ def create_app(state: AppState) -> FastAPI:
         xhs = await state.ensure()
         return {
             "ok": True,
-            "settings": state.settings.read(),
+            "settings": public_settings(state.settings.read()),
             "schema": SETTINGS_SCHEMA,
             "effective": {
                 "work_path": str(xhs.manager.path),
@@ -270,11 +273,13 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.put("/api/settings")
     async def put_settings(req: SettingsUpdate):
+        if req.clear_cookie and req.cookie and req.cookie.strip():
+            return JSONResponse({"ok": False, "message": "不能同时设置和清除 Cookie"}, status_code=400)
         try:
-            merged = await state.update_settings(req.settings)
-        except Exception as error:
-            return JSONResponse({"ok": False, "message": f"设置保存失败：{error}"}, status_code=500)
-        return {"ok": True, "message": "设置已保存并生效", "settings": merged}
+            merged = await state.update_settings(req.settings, req.cookie, req.clear_cookie)
+        except Exception:
+            return JSONResponse({"ok": False, "message": "设置保存失败，请检查配置"}, status_code=500)
+        return {"ok": True, "message": "设置已保存并生效", "settings": public_settings(merged)}
 
     # ---------- 目录浏览 ----------
     @app.get("/api/dirs")
@@ -438,50 +443,11 @@ def create_app(state: AppState) -> FastAPI:
     # ---------- 媒体代理 ----------
     @app.get("/api/image")
     async def proxy_image(url: str):
-        xhs = await state.ensure()
-        client = xhs.manager.request_client
-        req = client.build_request("GET", url)
-        resp = await client.send(req, stream=True)
-        if resp.status_code >= 400:
-            await resp.aclose()
-            return JSONResponse({"ok": False, "message": f"上游图片加载失败：{resp.status_code}"},
-                                status_code=502)
-        headers = {"Cache-Control": "public, max-age=86400"}
-        content_type = resp.headers.get("content-type") or "image/jpeg"
-        return StreamingResponse(
-            resp.aiter_raw(),
-            status_code=resp.status_code,
-            media_type=content_type,
-            headers=headers,
-            background=BackgroundTask(resp.aclose),
-        )
+        return await proxy_media(url, "image")
 
     @app.get("/api/video")
     async def proxy_video(url: str, request: Request):
-        xhs = await state.ensure()
-        client = xhs.manager.request_client
-        headers = {}
-        if range_header := request.headers.get("range"):
-            headers["Range"] = range_header
-        req = client.build_request("GET", url, headers=headers)
-        resp = await client.send(req, stream=True)
-        if resp.status_code >= 400 and resp.status_code != 206:
-            await resp.aclose()
-            return JSONResponse({"ok": False, "message": f"上游视频加载失败：{resp.status_code}"},
-                                status_code=502)
-        resp_headers = {
-            "accept-ranges": resp.headers.get("accept-ranges", "bytes"),
-            "content-type": resp.headers.get("content-type", "video/mp4"),
-        }
-        for key in _VIDEO_HEADERS:
-            if resp.headers.get(key):
-                resp_headers[key] = resp.headers[key]
-        return StreamingResponse(
-            resp.aiter_raw(),
-            status_code=resp.status_code,
-            headers=resp_headers,
-            background=BackgroundTask(resp.aclose),
-        )
+        return await proxy_media(url, "video", request.headers.get("range"))
 
     # ---------- 前端页面 ----------
     vendor_dir = WEB_DIR.joinpath("vendor")

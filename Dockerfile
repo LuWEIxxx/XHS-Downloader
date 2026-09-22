@@ -43,6 +43,7 @@ COPY static /app/static
 COPY LICENSE /app/LICENSE
 COPY main.py /app/main.py
 COPY webui.py /app/webui.py
+COPY web_security.py /app/web_security.py
 
 # 创建挂载点（配置、下载记录、下载文件均在此持久化）
 VOLUME /app/Volume

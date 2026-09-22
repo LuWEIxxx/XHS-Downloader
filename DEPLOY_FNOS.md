@@ -1,5 +1,7 @@
 # XHS-Downloader Web 版 · 飞牛 NAS 部署指南
 
+> Web 模式现需管理账号：首次部署或升级前，将 `.env.example` 复制为 `.env`，设置至少 16 字符的 `XHS_WEB_PASSWORD`（账号默认 `admin`），并重新构建镜像。请完整上传新增的 `web_security.py`。浏览器使用原生登录框，正式部署应使用 HTTPS。配置说明见 [Web 安全与登录](WEB_SECURITY.md)。
+
 本项目在开源项目 [JoeanAmier/XHS-Downloader](https://github.com/JoeanAmier/XHS-Downloader) 基础上改造：
 - **后端**：复用项目原有 FastAPI 与下载核心，新增 Web 管理接口
 - **前端**：浏览器页面（粘贴链接 → 解析预览 → 勾选多选 → 下载）

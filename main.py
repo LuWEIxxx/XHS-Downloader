@@ -52,7 +52,6 @@ async def web_server(
     from webui import AppState, create_app
 
     state = AppState()
-    await state.ensure()
     api = create_app(state)
     config = Config(
         api,
