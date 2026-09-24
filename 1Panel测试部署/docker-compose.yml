@@ -1,0 +1,23 @@
+# 1Panel 测试专用 Compose。build 上下文指向上一级源码目录。
+services:
+  xhs-downloader-1panel-test:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: xhs-downloader-1panel-test
+    restart: unless-stopped
+    ports:
+      - "15556:5556"
+    environment:
+      TZ: Asia/Shanghai
+      LANG: C.UTF-8
+      XHS_WEB_USERNAME: ${XHS_WEB_USERNAME:-admin}
+      XHS_WEB_PASSWORD: ${XHS_WEB_PASSWORD:?请在 .env 中设置至少16字符的测试密码}
+    volumes:
+      - ./data/volume:/app/Volume
+      - ./data/downloads:/downloads
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

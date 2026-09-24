@@ -65,7 +65,7 @@ class AuthTests(unittest.TestCase):
                 self.assertEqual(401, self.client.get("/api/settings", headers={"Authorization": value}).status_code)
 
     def test_page_vendor_docs_and_cookie_redaction(self):
-        for path in ("/", "/vendor/vue.global.prod.js", "/docs", "/openapi.json", "/api/settings"):
+        for path in ("/", "/vendor/vue.global.prod.js", "/app-icon.png", "/favicon.ico", "/docs", "/openapi.json", "/api/settings"):
             with self.subTest(path=path):
                 response = self.client.get(path, headers=AUTH)
                 self.assertEqual(200, response.status_code)

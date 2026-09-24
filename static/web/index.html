@@ -39,10 +39,9 @@ header {
   display: flex; align-items: center; justify-content: space-between;
 }
 .logo { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; }
-.logo .dot {
-  width: 30px; height: 30px; border-radius: 9px; background: var(--primary);
-  color: #fff; display: inline-flex; align-items: center; justify-content: center;
-  font-size: 16px;
+.logo .app-icon {
+  width: 30px; height: 30px; border-radius: 7px; background: #ef3535;
+  object-fit: contain; display: block;
 }
 .nav-actions { display: flex; gap: 10px; }
 .btn-ghost {
@@ -263,7 +262,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
   <!-- 顶部导航 -->
   <header>
     <div class="nav">
-      <div class="logo"><span class="dot">红</span>XHS Downloader</div>
+      <div class="logo"><img class="app-icon" src="/app-icon.png" alt="">XHS Downloader</div>
       <div class="nav-actions">
         <button class="btn-ghost" @click="openFiles">📂 下载目录</button>
         <button class="btn-ghost" @click="openRecords">🗂 下载记录</button>
@@ -488,12 +487,14 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
           <div class="dir-item" v-for="r in records" :key="r.id">
             <span class="ic">📄</span>
             <span class="fname">
+              <a v-if="r['作品链接']" :href="r['作品链接']" target="_blank" rel="noopener"
+                 style="color:var(--primary)" @click.stop>🔗 作品链接</a>{{ r['作品链接'] ? ' · ' : '' }}
               {{ r['作品标题'] || r.id }}
               <span class="fmeta" v-if="r['作者昵称'] || r['作者ID']">
                 👤 {{ r['作者昵称'] || '未知作者' }}{{ r['作者ID'] ? ' · 小红书号 ' + r['作者ID'] : '' }}
               </span>
-              <span class="fmeta" v-if="r['作品链接'] || r['下载时间']">
-                <a v-if="r['作品链接']" :href="r['作品链接']" target="_blank" rel="noopener" style="color:var(--primary)">🔗 作品链接</a>{{ r['作品链接'] ? ' · ' : '' }}{{ r['下载时间'] || '' }}
+              <span class="fmeta" v-if="r['下载时间']">
+                · {{ r['下载时间'] }}
               </span>
             </span>
             <button class="dir-pick-btn" @click.stop="deleteRecord(r.id)">删除</button>

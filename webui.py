@@ -463,6 +463,10 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon():
-        return JSONResponse({}, status_code=204)
+        return FileResponse(WEB_DIR.parent.joinpath("XHS-Downloader.ico"))
+
+    @app.get("/app-icon.png", include_in_schema=False)
+    async def app_icon():
+        return FileResponse(WEB_DIR.parent.joinpath("XHS-Downloader.png"), media_type="image/png")
 
     return app
