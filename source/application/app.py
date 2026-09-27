@@ -223,7 +223,9 @@ class XHS:
 
     def __extract_image(self, container: dict, data: Namespace):
         container["下载地址"], container["动图地址"] = self.image.get_image_link(
-            data, self.manager.image_format
+            data,
+            self.manager.image_format,
+            live_photo=self.manager.live_download,
         )
         container["封面地址"] = None
 
@@ -275,7 +277,7 @@ class XHS:
             elif all(result):
                 count.success += 1
                 await self.__add_record(
-                    i,
+                    container,
                 )
             else:
                 count.fail += 1
@@ -300,9 +302,24 @@ class XHS:
 
     async def __add_record(
         self,
-        id_: str,
+        data: dict | str,
     ) -> None:
-        await self.id_recorder.add(id_)
+        """写入下载记录。
+
+        传入作品数据字典时写入完整扩展字段（作者昵称/作者ID/作品链接/作品标题/下载时间）；
+        传入纯 ID 字符串时仍兼容旧调用，其余字段留空。
+        """
+        if isinstance(data, str):
+            await self.id_recorder.add(data)
+            return
+        await self.id_recorder.add(
+            data["作品ID"],
+            作者昵称=data.get("作者昵称"),
+            作者ID=data.get("作者ID"),
+            作品链接=data.get("作品链接"),
+            作品标题=data.get("作品标题"),
+            下载时间=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        )
 
     async def extract(
         self,

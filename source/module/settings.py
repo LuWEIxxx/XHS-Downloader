@@ -27,7 +27,7 @@ class Settings:
         "image_download": True,  # 是否下载图文
         "video_download": True,  # 是否下载视频
         "video_cover_download": False,  # 是否下载视频封面
-        "live_download": False,  # 是否下载动图
+        "live_download": False,  # 是否下载动图并生成 Apple Live Photo 配对文件
         "video_preference": "resolution",  # 视频文件偏好
         "folder_mode": False,  # 文件夹归档模式
         "download_record": True,  # 是否记录下载历史

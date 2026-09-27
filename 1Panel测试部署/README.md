@@ -36,6 +36,23 @@ mkdir -p data/volume data/downloads
 
 然后编辑 `.env`，把 `XHS_WEB_PASSWORD` 改为只用于测试、且至少 16 个字符的密码。不要使用小红书 Cookie、1Panel 密码或其他线上服务密码。`.env` 不要提交或上传到公开仓库。
 
+Live Photo 的原始 JPEG/MP4 和 v2 转换中间文件默认使用容器 RAM 临时盘：
+
+```text
+tmpfs 上限：256 MB
+应用保护线：128 MiB
+容器路径：/app/LivePhotoTmp
+```
+
+如果 N1 可用内存较小，可以在 `.env` 中同时调低两个值，例如：
+
+```dotenv
+XHS_LIVE_PHOTO_TMP_SIZE=128m
+XHS_LIVE_PHOTO_TMP_MAX_BYTES=67108864
+```
+
+应用保护线应小于 tmpfs 上限，并且修改后需要重建/重新创建容器才能生效。
+
 ## 二、在 1Panel 创建编排
 
 1. 确认 1Panel 当前节点已经安装并启动 Docker。

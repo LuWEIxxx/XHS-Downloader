@@ -15,21 +15,29 @@
 import asyncio
 from datetime import datetime
 from pathlib import Path
+from typing import get_args
 from urllib.parse import quote
 
 import aiosqlite
+from curl_cffi.requests import BrowserTypeLiteral
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from source import Settings, XHS
+from source.module import IMPERSONATE
+from source.module.recorder import RECORD_COLUMNS_EXPECTED
 from web_security import WebAuth, proxy_media, public_settings
 
 __all__ = ["AppState", "create_app"]
 
 # 前端页面目录（webui.py 位于项目根目录）
 WEB_DIR = Path(__file__).resolve().parent.joinpath("static", "web")
+
+# 浏览器模拟目标候选：直接跟随 curl_cffi 支持列表，避免上游升级后失配
+IMPERSONATE_OPTIONS = ["", *get_args(BrowserTypeLiteral)]
+IMPERSONATE_HINT = f"curl_cffi 浏览器指纹模拟目标，留空使用项目默认值（{IMPERSONATE}）；用于绕过小红书风控"
 
 # 设置项描述（前端据此渲染表单）
 SETTINGS_SCHEMA = [
@@ -43,8 +51,11 @@ SETTINGS_SCHEMA = [
      "hint": "小红书网页版 Cookie，无需登录，非必需；设置后可获取视频高清画质"},
     {"key": "proxy", "type": "text", "label": "代理", "default": "",
      "hint": "请求数据时使用的代理，如 http://127.0.0.1:10808"},
-    {"key": "user_agent", "type": "text", "label": "User-Agent", "default": "",
-     "hint": "浏览器 User Agent，建议根据实际浏览器设置"},
+    {"key": "proxy_download", "type": "bool", "label": "下载文件使用代理", "default": False,
+     "hint": "下载作品文件时使用上方配置的网络代理；关闭时仅请求数据走代理"},
+    {"key": "impersonate", "type": "select", "label": "浏览器模拟目标", "default": "",
+     "options": IMPERSONATE_OPTIONS,
+     "hint": IMPERSONATE_HINT},
     {"key": "timeout", "type": "number", "label": "请求超时（秒）", "default": 10, "hint": "请求数据超时限制"},
     {"key": "max_retry", "type": "number", "label": "最大重试次数", "default": 5, "hint": "请求数据失败时的重试次数"},
     {"key": "chunk", "type": "number", "label": "下载块大小（字节）", "default": 2097152,
@@ -64,7 +75,8 @@ SETTINGS_SCHEMA = [
      "hint": "所有作品数据统一保存至 SQLite 数据库"},
     {"key": "image_download", "type": "bool", "label": "图文作品下载开关", "default": True, "hint": "是否下载图文、图集作品文件"},
     {"key": "video_download", "type": "bool", "label": "视频作品下载开关", "default": True, "hint": "是否下载视频作品文件"},
-    {"key": "live_download", "type": "bool", "label": "动图下载开关", "default": False, "hint": "是否下载图文动图文件"},
+    {"key": "video_cover_download", "type": "bool", "label": "视频封面下载开关", "default": False, "hint": "下载视频作品时同时保存封面图"},
+    {"key": "live_download", "type": "bool", "label": "实况照片下载开关", "default": False, "hint": "下载动图并直接生成同名 JPG+MOV 实况照片文件"},
     {"key": "folder_mode", "type": "bool", "label": "单作品独立文件夹", "default": False,
      "hint": "每个作品的文件储存至单独文件夹"},
     {"key": "download_record", "type": "bool", "label": "记录下载历史", "default": True,
@@ -89,8 +101,8 @@ def resolve_default_work_path(settings: dict) -> str:
     return ""
 
 
-# ExploreID.db 下载记录扩展字段（与 IDRecorder.RECORD_COLUMNS 保持一致）
-EXPLORE_ID_COLUMNS = ("作者昵称", "作者ID", "作品链接", "作品标题", "下载时间")
+# ExploreID.db 下载记录扩展字段（与 IDRecorder.RECORD_COLUMNS 保持同一来源）
+EXPLORE_ID_COLUMNS = RECORD_COLUMNS_EXPECTED
 
 
 async def _migrate_explore_id(db) -> None:
@@ -180,6 +192,19 @@ def build_work_payload(data: dict) -> dict:
     return payload
 
 
+def _count_download_files(data: dict, index: list[int] | None = None) -> int:
+    """统计本次下载涉及的文件数量。
+
+    注意：不能用 build_work_payload() 产出的 items（那是前端字段），
+    必须基于 extract() 原始返回的「下载地址」计算。
+    """
+    if index:
+        return len(index)
+    if data.get("作品类型") == "视频":
+        return 1 if data.get("下载地址") else 0
+    return len(data.get("下载地址") or [])
+
+
 class ParseRequest(BaseModel):
     url: str
 
@@ -215,7 +240,12 @@ def create_app(state: AppState) -> FastAPI:
         xhs = await state.ensure()
         async with state.op_lock:
             try:
-                results = await xhs.extract(req.url, download=False, data=True)
+                # 解析预览必须忽略下载记录，否则已下载作品无法再次预览
+                results = await xhs.extract(
+                    req.url,
+                    download=False,
+                    check_record=False,
+                )
             except Exception as error:
                 return JSONResponse({"ok": False, "message": f"解析异常：{error}"}, status_code=500)
         works = []
@@ -235,23 +265,31 @@ def create_app(state: AppState) -> FastAPI:
         xhs = await state.ensure()
         async with state.op_lock:
             try:
-                results = await xhs.extract(req.url, download=True, index=req.index or None)
+                results = await xhs.extract(
+                    req.url,
+                    download=True,
+                    index=req.index or None,
+                )
             except Exception as error:
                 return JSONResponse({"ok": False, "message": f"下载异常：{error}"}, status_code=500)
             data = results[0] if results else None
-            skipped = False
-            if data and data.get("作品ID"):
-                skipped = bool(await xhs.skip_download(data["作品ID"]))
         if not data:
             return JSONResponse({"ok": False, "message": "获取作品数据失败，未执行下载"}, status_code=400)
-        count = len(req.index) if req.index else len(data.get("items", []))
-        msg = f"下载任务执行完毕，共 {count} 个文件"
-        if skipped:
-            msg += "；该作品存在下载记录，已自动跳过（可在设置中关闭下载历史记录）"
+        # 命中下载记录：extract 返回 {"message": ...}，无作品数据
+        if data.get("message") and not data.get("作品ID"):
+            return {
+                "ok": True,
+                "skipped": True,
+                "message": data["message"],
+                "download_path": str(xhs.manager.folder),
+            }
+        if not data.get("作品ID"):
+            return JSONResponse({"ok": False, "message": "获取作品数据失败，未执行下载"}, status_code=400)
+        count = _count_download_files(data, req.index)
         return {
             "ok": True,
-            "message": msg,
-            "skipped": skipped,
+            "message": f"下载任务执行完毕，共 {count} 个文件",
+            "skipped": False,
             "download_path": str(xhs.manager.folder),
             "data": build_work_payload(data),
         }

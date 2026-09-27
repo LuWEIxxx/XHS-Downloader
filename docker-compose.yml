@@ -25,6 +25,8 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - LANG=C.UTF-8
+      - XHS_LIVE_PHOTO_TMP=/app/LivePhotoTmp
+      - XHS_LIVE_PHOTO_TMP_MAX_BYTES=${XHS_LIVE_PHOTO_TMP_MAX_BYTES:-134217728}
       - XHS_WEB_USERNAME=${XHS_WEB_USERNAME:-admin}
       - XHS_WEB_PASSWORD=${XHS_WEB_PASSWORD:?请在 .env 中设置至少16字符的管理密码}
     volumes:
@@ -32,6 +34,9 @@ services:
       - xhs_config:/app/Volume
       # 挂载 NAS 父目录到容器内同名路径，文件最终存到 /vol1/1000/xhs/Download
       - /vol1/1000/xhs:/vol1/1000/xhs
+    # Live Photo 原始文件和 v2 转换中间文件使用 RAM，避免写入闪存
+    tmpfs:
+      - /app/LivePhotoTmp:size=${XHS_LIVE_PHOTO_TMP_SIZE:-256m},mode=1770
     logging:
       driver: json-file
       options:

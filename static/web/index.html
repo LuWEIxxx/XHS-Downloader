@@ -617,7 +617,12 @@ createApp({
         });
         const j = await res.json();
         if (j.ok) {
-          this.showToast(j.message + (j.download_path ? `（保存至 ${j.download_path}）` : ""), "success");
+          if (j.skipped) {
+            // 命中下载记录：非失败，用提示色告知用户
+            this.showToast(j.message || "作品已存在下载记录，已跳过", "info");
+          } else {
+            this.showToast(j.message + (j.download_path ? `（保存至 ${j.download_path}）` : ""), "success");
+          }
           this.clearSelect(work);
         } else {
           this.showToast(j.message || "下载失败", "error");

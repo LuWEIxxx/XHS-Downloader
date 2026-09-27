@@ -26,7 +26,7 @@ class UserPosted:
         self.cookies = self.get_cookie(cookies)
         self.print = manager.print
         self.retry = manager.retry
-        self.proxy = (self.client.proxies.get("all", None) if proxy is None else proxy,)
+        self.proxy = self.client.proxies.get("all") if proxy is None else proxy
 
     def get_cookie(self, cookies: str | None = None) -> dict | str:
         if cookies:

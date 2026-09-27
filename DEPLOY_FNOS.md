@@ -174,4 +174,4 @@ docker tag  docker.1ms.run/library/python:3.12-bullseye python:3.12-bullseye
 
 - Web 后端接口见 `webui.py`，核心逻辑复用 `source/application/app.py` 的 `XHS` 类
 - 前端为单页 `static/web/index.html`（Vue3 本地托管），修改后无需构建，刷新即可
-- 原项目的 API 模式接口 `/xhs/detail` 依然可用（Web 服务已内置兼容）
+- Web 后端只保证当前项目文档和测试覆盖的接口；不承诺额外的旧版 API 兼容层。上游同步后应以 `webui.py` 和 `tests/test_webui_contract.py` 为准。

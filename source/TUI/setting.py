@@ -142,7 +142,7 @@ class Setting(Screen):
             Label(),
             Container(
                 Checkbox(
-                    _("动图文件下载开关"),
+                    _("实况照片下载开关"),
                     id="live_download",
                     value=self.data["live_download"],
                 ),

@@ -7,7 +7,12 @@ __all__ = ["Image"]
 
 class Image:
     @classmethod
-    def get_image_link(cls, data: Namespace, format_: str) -> tuple[list, list]:
+    def get_image_link(
+        cls,
+        data: Namespace,
+        format_: str,
+        live_photo: bool = False,
+    ) -> tuple[list, list]:
         images = data.safe_extract("imageList", [])
         live_link = cls.__get_live_link(images)
         if not any(
@@ -26,14 +31,19 @@ class Image:
                     Html.format_url(
                         cls.__generate_fixed_link(
                             i,
-                            format_,
+                            "jpeg" if live_photo and live_link[index] else format_,
                         )
                     )
-                    for i in token_list
+                    for index, i in enumerate(token_list)
                 ], live_link
             case "auto":
                 return [
-                    Html.format_url(cls.__generate_auto_link(i)) for i in token_list
+                    Html.format_url(
+                        cls.__generate_fixed_link(i, "jpeg")
+                        if live_photo and live_link[index]
+                        else cls.__generate_auto_link(i)
+                    )
+                    for index, i in enumerate(token_list)
                 ], live_link
             case _:
                 raise ValueError
@@ -55,12 +65,15 @@ class Image:
 
     @staticmethod
     def __get_live_link(items: list) -> list:
-        return [
-            (
-                Html.format_url(
-                    Namespace.object_extract(item, "stream.h264[0].masterUrl")
-                )
-                or None
-            )
-            for item in items
-        ]
+        result = []
+        for item in items:
+            url = None
+            stream = Namespace.object_extract(item, "stream", {})
+            for key in vars(stream):
+                url = Namespace.object_extract(
+                    stream, f"{key}[0].backupUrls[0]"
+                ) or Namespace.object_extract(stream, f"{key}[0].masterUrl")
+                if url := Html.format_url(url):
+                    break
+            result.append(url)
+        return result

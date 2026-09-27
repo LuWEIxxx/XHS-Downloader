@@ -8,10 +8,16 @@ from aiosqlite import connect
 if TYPE_CHECKING:
     from ..module import Manager
 
-__all__ = ["IDRecorder", "DataRecorder", "MapRecorder"]
+__all__ = ["IDRecorder", "DataRecorder", "MapRecorder", "RECORD_COLUMNS_EXPECTED"]
+
+# 下载记录扩展字段（单一来源：recorder 与 WebUI 共用，避免两侧定义漂移）
+RECORD_COLUMNS_EXPECTED = ("作者昵称", "作者ID", "作品链接", "作品标题", "下载时间")
 
 
 class IDRecorder:
+    # 下载记录扩展字段（WebUI 展示作者昵称/作者ID/作品链接/作品标题/下载时间）
+    RECORD_COLUMNS = RECORD_COLUMNS_EXPECTED
+
     def __init__(self, manager: "Manager"):
         self.name = "ExploreID.db"
         self.file = manager.root.joinpath(self.name)
@@ -24,8 +30,23 @@ class IDRecorder:
         self.database = await connect(self.file)
         self.cursor = await self.database.cursor()
         await self.database.execute(
-            "CREATE TABLE IF NOT EXISTS explore_id (ID TEXT PRIMARY KEY);"
+            "CREATE TABLE IF NOT EXISTS explore_id ("
+            "ID TEXT PRIMARY KEY,"
+            "作者昵称 TEXT,"
+            "作者ID TEXT,"
+            "作品链接 TEXT,"
+            "作品标题 TEXT,"
+            "下载时间 TEXT"
+            ");"
         )
+        # 旧库平滑迁移：检测缺失列并 ALTER TABLE 补充，不清空、不重建已有记录
+        cursor = await self.database.execute("PRAGMA table_info(explore_id)")
+        existing = {row[1] for row in await cursor.fetchall()}
+        for column in self.RECORD_COLUMNS:
+            if column not in existing:
+                await self.database.execute(
+                    f"ALTER TABLE explore_id ADD COLUMN {column} TEXT"
+                )
         await self.database.commit()
 
     async def select(self, id_: str):
@@ -41,7 +62,20 @@ class IDRecorder:
         **kwargs,
     ) -> None:
         if self.switch:
-            await self.database.execute("REPLACE INTO explore_id VALUES (?);", (id_,))
+            # 显式列名写入：兼容旧库单列结构（迁移后自动补列）与完整作品信息
+            await self.database.execute(
+                "REPLACE INTO explore_id "
+                "(ID, 作者昵称, 作者ID, 作品链接, 作品标题, 下载时间) "
+                "VALUES (?,?,?,?,?,?)",
+                (
+                    id_,
+                    kwargs.get("作者昵称"),
+                    kwargs.get("作者ID"),
+                    kwargs.get("作品链接"),
+                    kwargs.get("作品标题"),
+                    kwargs.get("下载时间"),
+                ),
+            )
             await self.database.commit()
 
     async def __delete(self, id_: str) -> None:

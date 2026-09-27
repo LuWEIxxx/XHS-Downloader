@@ -1,7 +1,10 @@
 __pycache__/
 *.pyc
 /.venv/
+/.review-venv-*/
+/.pytest_cache/
 /.ruff_cache/
+/.workbuddy/
 /.idea/
 /.run/
 /Volume/
