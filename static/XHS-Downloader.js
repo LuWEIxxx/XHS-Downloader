@@ -130,13 +130,6 @@ KS-Downloader（快手、KuaiShou）：https://github.com/JoeanAmier/KS-Download
             scriptServerSwitchDesc: '启用后，可以把作品下载任务推送至服务器',
             imageDownloadFormatLabel: '图片下载格式',
             imageDownloadFormatDesc: '图文作品文件下载格式',
-            videoPreferenceLabel: '视频下载偏好',
-            videoPreferenceDesc: '视频作品文件下载策略',
-            videoPreferenceOptions: {
-                resolution: '分辨率优先',
-                bitrate: '码率优先',
-                size: '文件大小优先',
-            },
             fileNameFormatLabel: '作品文件名称格式',
             fileNameFormatDesc: '点击可选字段添加，拖拽已选字段调整顺序',
             fileNameSelectedLabel: '已选字段',
@@ -293,13 +286,6 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
             scriptServerSwitchDesc: 'When enabled, download tasks can be pushed to the server',
             imageDownloadFormatLabel: 'Image Download Format',
             imageDownloadFormatDesc: 'Preferred file format for downloading images',
-            videoPreferenceLabel: 'Video download preferences',
-            videoPreferenceDesc: 'Video Notes File Download Strategy',
-            videoPreferenceOptions: {
-                resolution: 'Resolution priority',
-                bitrate: 'Bitrate priority',
-                size: 'File size priority',
-            },
             fileNameFormatLabel: 'Note File Name Format',
             fileNameFormatDesc: 'Click available fields to add them. Drag selected fields to reorder.',
             fileNameSelectedLabel: 'Selected Fields',
@@ -434,7 +420,6 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
         linkCheckboxSwitch: GM_getValue("linkCheckboxSwitch", true),
         imageCheckboxSwitch: GM_getValue("imageCheckboxSwitch", true),
         imageDownloadFormat: GM_getValue("imageDownloadFormat", "jpeg"),
-        videoPreference: GM_getValue("videoPreference", "resolution"),
         scriptServerURL: GM_getValue("scriptServerURL", defaultsWebSocketURL),
         scriptServerSwitch: GM_getValue("scriptServerSwitch", false),
         fileNameFormatKeys: storedFileNameFormatKeys,
@@ -575,11 +560,6 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
         GM_setValue("imageDownloadFormat", config.imageDownloadFormat);
     }
 
-    const updateVideoPreference = (value) => {
-        config.videoPreference = value;
-        GM_setValue("videoPreference", value);
-    };
-
     // 更新文件名格式配置。
     const updateFileNameFormat = (value) => {
         config.fileNameFormatKeys = parseFileNameFormat(value);
@@ -612,21 +592,13 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
         }
     }
 
-    const preferenceKey = {
-        resolution: "height",
-        bitrate: "videoBitrate",
-        size: "size",
-    };
-
     const generateVideoUrl = note => {
         try {
             const key = note.video?.consumer?.originVideoKey;
             if (key) return [`https://sns-video-bd.xhscdn.com/${key}`];
             const allStreams = Object.values(note.video.media.stream).flat();
-            if (allStreams.length === 0) return [];
-            sortArray(allStreams, preferenceKey[config.videoPreference]);
-            const stream = allStreams[0];
-            return [stream.backupUrls[0] || stream.masterUrl];
+            sortArray(allStreams, "height");
+            return [allStreams[0].backupUrls[0] || allStreams[0].masterUrl];
         } catch (error) {
             console.error("Error deal video URL:", error);
             return [];
@@ -684,7 +656,7 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
                                })
                 } else {
                     console.error("提取图片预览链接失败", item)
-                    break
+                    return [];
                 }
             }
             return items;
@@ -703,6 +675,7 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
                 if (items.length === 0) {
                     console.error("解析图文作品数据失败", note)
                     abnormal(t.imageExtractError)
+                    return;
                 } else if (urls.length > 1 && config.imageCheckboxSwitch) {
                     data.index = await showImageSelectionModal(items, name, server,);
                 }
@@ -766,11 +739,21 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
     const extractDownloadLinks = async (server = false) => {
         if (currentUrl.includes(`https://www.${currentSite}.com/explore/`) || currentUrl.includes(
             `https://www.${currentSite}.com/discovery/item/`)) {
-            let note = extractNoteInfo();
-            if (note) {
-                await exploreDeal(note, server,);
-            } else {
-                abnormal(t.extractError);
+            const downloadKey = extractCurrentNoteId();
+            if (activeDownloadKeys.has(downloadKey)) {
+                showToast(t.downloadTips);
+                return;
+            }
+            activeDownloadKeys.add(downloadKey);
+            try {
+                let note = extractNoteInfo();
+                if (note) {
+                    await exploreDeal(note, server,);
+                } else {
+                    abnormal(t.extractError);
+                }
+            } finally {
+                activeDownloadKeys.delete(downloadKey);
             }
         }
     };
@@ -910,6 +893,8 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
         const match = currentUrl?.match(/\/(?:explore|discovery\/item)\/([^/?#]+)/);
         return match ? match[1] : "";
     };
+
+    const activeDownloadKeys = new Set();
 
     // 提取作品数据内的作品 ID。
     const getNoteId = (note) => {
@@ -1470,8 +1455,7 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
         box-shadow: 0 0 4px rgba(33, 150, 243, 0.3);
     }
     .select-input {
-        min-width: 130px;
-        width: auto;
+        width: 100px;
         padding: 8px 12px;
         border: 1px solid #ddd;
         border-radius: 4px;
@@ -1948,11 +1932,8 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
         item.style.opacity = disabled ? 0.6 : 1;
 
         // 生成选项HTML
-        const optionsHtml = options.map(option => {
-            const optionValue = typeof option === 'object' ? option.value : option;
-            const optionLabel = typeof option === 'object' ? option.label : option;
-            return `<option value="${optionValue}" ${optionValue === value ? 'selected' : ''}>${optionLabel}</option>`;
-        }).join('');
+        const optionsHtml = options.map(
+            option => `<option value="${option}" ${option === value ? 'selected' : ''}>${option}</option>`).join('');
 
         item.innerHTML = `
             <label>
@@ -2065,17 +2046,6 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
                                                              .toUpperCase(),
                                                      });
 
-        const videoPreference = createSelectItem({
-                                                     label: t.videoPreferenceLabel,
-                                                     description: t.videoPreferenceDesc,
-                                                     options: Object.entries(t.videoPreferenceOptions)
-                                                                    .map(([value, label]) => ({
-                                                                        value,
-                                                                        label,
-                                                                    })),
-                                                     value: config.videoPreference,
-                                                 });
-
         const nameFormat = createFileNameFormatEditor({
                                                           label: t.fileNameFormatLabel,
                                                           description: t.fileNameFormatDesc,
@@ -2111,7 +2081,7 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
         // 组合内容
         body.appendChild(createSettingsGroup(
             t.downloadSettingsGroup,
-            [filePack, imageCheckboxSwitch, imageDownloadFormat, videoPreference, nameFormat],
+            [filePack, imageCheckboxSwitch, imageDownloadFormat, nameFormat],
             true
         ));
         body.appendChild(createSettingsGroup(t.extractSettingsGroup, [autoScroll, scrollCount, linkCheckboxSwitch]));
@@ -2148,7 +2118,6 @@ Discord Community: https://discord.com/invite/ZYtmgKud9Y
             updateScriptServerURL(scriptServerURL.querySelector('.text-input').value.trim() || defaultsWebSocketURL);
             updateScriptServerSwitch(scriptServerSwitch.querySelector('input').checked);
             updateImageDownloadFormat(imageDownloadFormat.querySelector('select').value.trim() || "jpeg");
-            updateVideoPreference(videoPreference.querySelector('select').value);
             updateFileNameFormat(nameFormat.getFileNameFormatKeys());
             closeSettingsModal();
         });

@@ -1,6 +1,7 @@
 from asyncio import run
+
+from curl_cffi.requests import post
 from pyperclip import paste
-from httpx import post
 from rich import print
 
 from source import XHS
@@ -15,7 +16,7 @@ async def example():
     work_path = "D:\\"  # 作品数据/文件保存根路径，默认值：项目根路径
     folder_name = "Download"  # 作品文件储存文件夹名称（自动创建），默认值：Download
     name_format = "作品标题 作品描述"
-    user_agent = ""  # User-Agent
+    impersonate = "chrome146"  # 浏览器模拟目标
     cookie = ""  # 小红书网页版 Cookie
     proxy = None  # 网络代理
     timeout = 5  # 请求数据超时限制，单位：秒
@@ -26,6 +27,7 @@ async def example():
     folder_mode = False  # 是否将每个作品的文件储存至单独的文件夹
     image_download = True  # 图文、图集作品文件下载开关
     video_download = True  # 视频作品文件下载开关
+    video_cover_download = False  # 视频封面文件下载开关
     live_download = False  # 图文动图文件下载开关
     download_record = True  # 是否记录下载成功的作品 ID
     language = "zh_CN"  # 设置程序提示语言
@@ -41,7 +43,7 @@ async def example():
         work_path=work_path,
         folder_name=folder_name,
         name_format=name_format,
-        user_agent=user_agent,
+        impersonate=impersonate,
         cookie=cookie,
         proxy=proxy,
         timeout=timeout,
@@ -52,6 +54,7 @@ async def example():
         folder_mode=folder_mode,
         image_download=image_download,
         video_download=video_download,
+        video_cover_download=video_cover_download,
         live_download=live_download,
         download_record=download_record,
         language=language,
@@ -94,7 +97,7 @@ async def example_api():
 
 
 async def test():
-    url = "" or paste()
+    url = "" or paste().replace("\n", " ")
     if not url:
         return
     async with XHS(

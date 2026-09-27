@@ -1,16 +1,19 @@
 from asyncio import run
 from contextlib import suppress
-from pathlib import Path as Root
+from pathlib import Path
 from textwrap import fill
+from typing import Callable
 
-from click import Context
 from click import (
-    command,
-    option,
-    Path,
     Choice,
-    pass_context,
+    Context,
+    command,
     echo,
+    option,
+    pass_context,
+)
+from click import (
+    Path as ClickPath,
 )
 from rich import print
 from rich.panel import Panel
@@ -20,16 +23,16 @@ from source.application import XHS
 
 # from source.expansion import BrowserCookie
 from source.module import (
-    ROOT,
     PROJECT,
+    VOLUME,
+    Settings,
 )
-from source.module import Settings
-from source.translation import switch_language, _
+from source.translation import _, switch_language
 
 __all__ = ["cli"]
 
 
-def check_value(function):
+def check_value(function: Callable) -> Callable:
     def inner(ctx: Context, param, value):
         return function(ctx, param, value) if value else None
 
@@ -55,22 +58,22 @@ class CLI:
         await self.APP.__aenter__()
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
         await self.APP.__aexit__(exc_type, exc_value, traceback)
 
-    async def run(self):
+    async def run(self) -> None:
         if self.url:
             await self.APP.extract_cli(self.url, index=self.index)
         self.__update_settings()
 
-    def __update_settings(self):
+    def __update_settings(self) -> None:
         if self.update:
             self.settings.update(self.parameter)
 
     def __check_settings_path(self) -> Path:
         if not self.path:
-            return ROOT
-        return s.parent if (s := Root(self.path)).is_file() else ROOT
+            return VOLUME
+        return s.parent if (s := Path(self.path)).is_file() else VOLUME
 
     @staticmethod
     def __merge_cookie(data: dict) -> None:
@@ -80,10 +83,10 @@ class CLI:
 
     def __clean_params(self, data: dict) -> dict:
         # self.__merge_cookie(data)
-        return {k: v for k, v in data.items() if v != None}
+        return {k: v for k, v in data.items() if v is not None}
 
     @staticmethod
-    def __format_index(index: str) -> list:
+    def __format_index(index: str) -> list[int]:
         if index:
             result = []
             values = index.split()
@@ -139,9 +142,15 @@ class CLI:
             ("--work_path", "-wp", "str", _("作品数据/文件保存根路径")),
             ("--folder_name", "-fn", "str", _("作品文件储存文件夹名称")),
             ("--name_format", "-nf", "str", _("作品文件名称格式")),
-            ("--user_agent", "-ua", "str", "User-Agent"),
+            ("--impersonate", "-im", "str", _("浏览器模拟目标")),
             ("--cookie", "-ck", "str", _("小红书网页版 Cookie，无需登录")),
             ("--proxy", "-p", "str", _("网络代理")),
+            (
+                "--proxy_download",
+                "-pd",
+                "bool",
+                _("下载文件时，是否使用 proxy 参数的网络代理"),
+            ),
             ("--timeout", "-t", "int", _("请求数据超时限制，单位：秒")),
             (
                 "--chunk",
@@ -160,6 +169,13 @@ class CLI:
                 _("图文作品文件下载格式，支持：PNG、WEBP、JPEG、HEIC、AUTO"),
             ),
             ("--live_download", "-ld", "bool", _("动态图片下载开关")),
+            ("--video_cover_download", "-vcd", "bool", _("视频封面下载开关")),
+            (
+                "--video_preference",
+                "-vp",
+                "choice",
+                _("视频下载偏好，支持：resolution、bitrate、size"),
+            ),
             ("--download_record", "-dr", "bool", _("作品下载记录开关")),
             (
                 "--folder_mode",
@@ -181,6 +197,12 @@ class CLI:
                     _("是否将作品文件的修改时间属性修改为作品的发布时间"),
                     width=55,
                 ),
+            ),
+            (
+                "--note_format",
+                "-nfmt",
+                "choice",
+                _("作品信息保存格式，支持：txt、md、all"),
             ),
             ("--language", "-l", "choice", _("设置程序语言，目前支持：zh_CN、en_US")),
             ("--settings", "-s", "str", _("读取指定配置文件")),
@@ -233,7 +255,7 @@ class CLI:
 @option(
     "--work_path",
     "-wp",
-    type=Path(file_okay=False),
+    type=ClickPath(file_okay=False),
 )
 @option(
     "--folder_name",
@@ -244,8 +266,8 @@ class CLI:
     "-nf",
 )
 @option(
-    "--user_agent",
-    "-ua",
+    "--impersonate",
+    "-im",
 )
 @option(
     "--cookie",
@@ -254,6 +276,11 @@ class CLI:
 @option(
     "--proxy",
     "-p",
+)
+@option(
+    "--proxy_download",
+    "-pd",
+    type=bool,
 )
 @option(
     "--timeout",
@@ -285,6 +312,11 @@ class CLI:
 @option(
     "--live_download",
     "-ld",
+    type=bool,
+)
+@option(
+    "--video_cover_download",
+    "-vcd",
     type=bool,
 )
 @option(
@@ -325,7 +357,7 @@ class CLI:
 @option(
     "--settings",
     "-s",
-    type=Path(dir_okay=False),
+    type=ClickPath(dir_okay=False),
 )
 # @option(
 #     "--browser_cookie",

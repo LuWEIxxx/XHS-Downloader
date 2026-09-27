@@ -5,6 +5,7 @@ from textual.containers import Container, ScrollableContainer
 from textual.screen import Screen
 from textual.widgets import Button, Checkbox, Footer, Header, Input, Label, Select
 
+from ..module import IMPERSONATE
 from ..translation import _
 
 __all__ = ["Setting"]
@@ -56,14 +57,14 @@ class Setting(Screen):
                 id="name_format",
             ),
             Label(
-                "User-Agent",
+                _("浏览器模拟目标"),
                 classes="params",
             ),
             Input(
-                self.data["user_agent"],
-                placeholder=_("内置 Chrome User Agent"),
+                self.data["impersonate"],
+                placeholder=IMPERSONATE,
                 valid_empty=True,
-                id="user_agent",
+                id="impersonate",
             ),
             Label(
                 _("小红书网页版 Cookie"),
@@ -165,9 +166,19 @@ class Setting(Screen):
             Label(),
             Container(
                 Checkbox(
+                    _("视频封面下载开关"),
+                    id="video_cover_download",
+                    value=self.data["video_cover_download"],
+                ),
+                Checkbox(
                     _("脚本服务器开关"),
                     id="script_server",
                     value=self.data["script_server"],
+                ),
+                Checkbox(
+                    _("下载文件使用代理"),
+                    id="proxy_download",
+                    value=self.data["proxy_download"],
                 ),
                 classes="horizontal-layout",
             ),
@@ -253,7 +264,7 @@ class Setting(Screen):
                 "work_path": self.query_one("#work_path").value,
                 "folder_name": self.query_one("#folder_name").value,
                 "name_format": self.query_one("#name_format").value,
-                "user_agent": self.query_one("#user_agent").value,
+                "impersonate": self.query_one("#impersonate").value,
                 "cookie": self.query_one("#cookie").value or self.data["cookie"],
                 "proxy": self.query_one("#proxy").value or None,
                 "timeout": int(self.query_one("#timeout").value),
@@ -265,11 +276,13 @@ class Setting(Screen):
                 "language": self.query_one("#language").value,
                 "image_download": self.query_one("#image_download").value,
                 "video_download": self.query_one("#video_download").value,
+                "video_cover_download": self.query_one("#video_cover_download").value,
                 "live_download": self.query_one("#live_download").value,
                 "download_record": self.query_one("#download_record").value,
                 "author_archive": self.query_one("#author_archive").value,
                 "write_mtime": self.query_one("#write_mtime").value,
                 "script_server": self.query_one("#script_server").value,
+                "proxy_download": self.query_one("#proxy_download").value,
                 "video_preference": self.query_one("#video_preference").value,
                 "note_format": self.query_one("#note_format").value,
             }

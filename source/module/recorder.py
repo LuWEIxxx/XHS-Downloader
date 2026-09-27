@@ -1,7 +1,8 @@
 from asyncio import CancelledError
 from contextlib import suppress
-from typing import TYPE_CHECKING
 from shutil import move
+from typing import TYPE_CHECKING
+
 from aiosqlite import connect
 
 if TYPE_CHECKING:
@@ -11,9 +12,6 @@ __all__ = ["IDRecorder", "DataRecorder", "MapRecorder"]
 
 
 class IDRecorder:
-    # 下载记录扩展字段（WebUI 展示作者昵称/作品链接/作者小红书号等）
-    RECORD_COLUMNS = ("作者昵称", "作者ID", "作品链接", "作品标题", "下载时间")
-
     def __init__(self, manager: "Manager"):
         self.name = "ExploreID.db"
         self.file = manager.root.joinpath(self.name)
@@ -26,23 +24,8 @@ class IDRecorder:
         self.database = await connect(self.file)
         self.cursor = await self.database.cursor()
         await self.database.execute(
-            "CREATE TABLE IF NOT EXISTS explore_id ("
-            "ID TEXT PRIMARY KEY,"
-            "作者昵称 TEXT,"
-            "作者ID TEXT,"
-            "作品链接 TEXT,"
-            "作品标题 TEXT,"
-            "下载时间 TEXT"
-            ");"
+            "CREATE TABLE IF NOT EXISTS explore_id (ID TEXT PRIMARY KEY);"
         )
-        # 旧库平滑迁移：检测缺失列并 ALTER TABLE 补充
-        cursor = await self.database.execute("PRAGMA table_info(explore_id)")
-        existing = {row[1] for row in await cursor.fetchall()}
-        for column in self.RECORD_COLUMNS:
-            if column not in existing:
-                await self.database.execute(
-                    f"ALTER TABLE explore_id ADD COLUMN {column} TEXT"
-                )
         await self.database.commit()
 
     async def select(self, id_: str):
@@ -58,19 +41,7 @@ class IDRecorder:
         **kwargs,
     ) -> None:
         if self.switch:
-            await self.database.execute(
-                "REPLACE INTO explore_id "
-                "(ID, 作者昵称, 作者ID, 作品链接, 作品标题, 下载时间) "
-                "VALUES (?,?,?,?,?,?)",
-                (
-                    id_,
-                    kwargs.get("作者昵称"),
-                    kwargs.get("作者ID"),
-                    kwargs.get("作品链接"),
-                    kwargs.get("作品标题"),
-                    kwargs.get("下载时间"),
-                ),
-            )
+            await self.database.execute("REPLACE INTO explore_id VALUES (?);", (id_,))
             await self.database.commit()
 
     async def __delete(self, id_: str) -> None:
@@ -85,7 +56,49 @@ class IDRecorder:
     async def all(self):
         if self.switch:
             await self.cursor.execute("SELECT ID FROM explore_id")
-            return [i[0] for i in await self.cursor.fetchmany()]
+            return [i[0] for i in await self.cursor.fetchall()]
+
+    async def count(self, query: str = "") -> int:
+        if not self.switch:
+            return 0
+        statement = "SELECT COUNT(*) FROM explore_id"
+        parameters = ()
+        if query:
+            statement += " WHERE INSTR(LOWER(ID), LOWER(?)) > 0"
+            parameters = (query,)
+        async with self.database.execute(statement, parameters) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    async def page(
+        self,
+        query: str = "",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[str]:
+        if not self.switch:
+            return []
+        limit = max(1, min(int(limit), 100))
+        offset = max(0, int(offset))
+        statement = "SELECT ID FROM explore_id"
+        parameters: tuple = ()
+        if query:
+            statement += " WHERE INSTR(LOWER(ID), LOWER(?)) > 0"
+            parameters = (query,)
+        statement += " ORDER BY rowid DESC LIMIT ? OFFSET ?"
+        async with self.database.execute(
+            statement,
+            (*parameters, limit, offset),
+        ) as cursor:
+            return [row[0] for row in await cursor.fetchall()]
+
+    async def clear(self) -> int:
+        if not self.switch:
+            return 0
+        count = await self.count()
+        await self.database.execute("DELETE FROM explore_id")
+        await self.database.commit()
+        return count
 
     async def __aenter__(self):
         self.compatible()
@@ -218,4 +231,4 @@ class MapRecorder(IDRecorder):
     async def all(self):
         if self.switch:
             await self.cursor.execute("SELECT ID, NAME FROM mapping_data")
-            return [i[0] for i in await self.cursor.fetchmany()]
+            return await self.cursor.fetchall()

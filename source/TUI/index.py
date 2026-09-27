@@ -113,7 +113,7 @@ class Index(Screen):
             await self.xhs.extract(
                 self.url.value,
                 True,
-                data=False,
+                check_record=True,
             )
         ):
             self.url.value = ""
